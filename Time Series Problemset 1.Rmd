@@ -1,0 +1,262 @@
+---
+title: "Time Series Problemset 1"
+output: html_document
+date: '2023-09-23'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("quantmod")
+library("tidyverse")
+library("ggplot2")
+library("gridExtra")
+library("ggthemes")
+getSymbols("MRTSSM44X72USN", src = "FRED")
+
+df <- as.data.frame(MRTSSM44X72USN)
+df <- cbind(date = rownames(df), df)
+colnames(df) <- c("Date","US_Sales")
+df$Date <- as.Date(df$Date, format = "%Y-%m-%d")
+```
+
+```{r}
+
+df %>%
+  ggplot(aes(x = Date, y = log(US_Sales))) +
+  geom_line() +
+  labs(title = "US Sales",
+       x = "Date",
+       y = "Sales") +
+  theme_economist() +
+  scale_color_economist()
+
+```
+
+```{r}
+
+df %>%
+  mutate(trend = seq(1:length(US_Sales))) %>%
+  mutate(log_lm_fit = {
+    model <- lm(log(US_Sales) ~ trend, data = .)
+    predict(model)}
+  ) %>%
+  ggplot(aes(x = Date, y = log(US_Sales))) + 
+  geom_line() +
+  geom_line(aes(y = log_lm_fit), color = "blue") +
+  labs(title = "US Sales with Fitted Trend",
+       x = "Date",
+       y = "Sales",
+       ) +
+  theme_economist()
+
+```
+```{r}
+
+df %>%
+  mutate(trend = seq(1:length(US_Sales))) %>%
+  mutate(log_lm_fit = {
+    model <- lm(log(US_Sales) ~ trend, data = .)
+    predict(model)}
+  ) %>%
+  ggplot(aes(x = Date, y = log(US_Sales) - log_lm_fit)) +
+  geom_line() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "blue") +
+  labs(title = "Residuals plotted",
+       x = "Date",
+       y = "Residuals") +
+  theme_economist()
+
+
+```
+```{r}
+
+df %>%
+  mutate(trend = seq(1:length(US_Sales))) %>%
+  mutate(month = factor(month(Date, label = TRUE))) %>%
+  tidyr::spread(key = month, value = month, fill = 0) %>%
+  mutate(across(jan:dec, ~ifelse(!is.na(.), 1, 0))) %>%
+  mutate(log_lm_fit_season = {
+    model <- lm(log(US_Sales) ~ trend + jan + feb + mar + apr + maj + jun + jul + aug + sep + okt + nov + dec, data = .)
+    predict(model)}
+  ) %>%
+  ggplot(aes(x = Date, y = log(US_Sales))) +
+  geom_line() +
+  geom_line(aes(x = Date, y = log_lm_fit_season), color = "blue") +
+  labs(title = "US Sales with Fitted Trend and Season",
+       x = "Date",
+       y = "Sales") +
+  theme_economist()
+
+```
+
+```{r}
+
+df %>%
+  mutate(trend = seq(1:length(US_Sales))) %>%
+  mutate(month = factor(month(Date, label = TRUE))) %>%
+  tidyr::spread(key = month, value = month, fill = 0) %>%
+  mutate(across(jan:dec, ~ifelse(!is.na(.), 1, 0))) %>%
+  mutate(log_lm_fit_season = {
+    model <- lm(log(US_Sales) ~ trend + jan + feb + mar + apr + maj + jun + jul + aug + sep + okt + nov + dec, data = .)
+    predict(model)}
+  ) %>%
+  ggplot(aes(x = Date, y = log(US_Sales) - log_lm_fit_season)) +
+  geom_line() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "blue") +
+  labs(title = "Residuals plotted with season",
+       x = "Date",
+       y = "Residuals") +
+  theme_economist()
+
+```
+```{r}
+
+df %>%
+  mutate(trend = seq(1:length(US_Sales))) %>%
+  mutate(log_lm_fit = {
+    model <- lm(log(US_Sales) ~ trend, data = .)
+    predict(model)}
+  ) %>%
+  mutate(log_lm_quad_fit = {
+    model <- lm(log(US_Sales) ~ trend + I(trend^2), data =.)
+    predict(model)}
+  ) %>%
+  mutate(log_lm_cubic_fit = {
+    model <- lm(log(US_Sales) ~ trend + I(trend^2) + I(trend^3), data =.)
+    predict(model)}
+  ) %>%
+  ggplot(aes(x = Date, y = log(US_Sales))) + 
+  geom_line(aes(color = "Actual Sales")) +
+  geom_line(aes(y = log_lm_fit, color = "Linear Fit")) +
+  geom_line(aes(y = log_lm_quad_fit, color = "Quadratic Fit")) +
+  geom_line(aes(y = log_lm_cubic_fit, color = "Cubic Fit")) +
+  labs(title = "US Sales with Fitted Trend (Linear, Quadratic, Cubic)",
+       x = "Date",
+       y = "Sales") +
+  scale_color_manual(values = c("Actual Sales" = "black", 
+                                "Linear Fit" = "blue", 
+                                "Quadratic Fit" = "red", 
+                                "Cubic Fit" = "green")) +
+  theme_economist()
+
+
+```
+
+```{r, }
+
+# Linear Residuals Plot
+p1 <- df %>%
+  mutate(trend = seq_len(nrow(df))) %>%
+  mutate(log_lm_fit = {
+    model <- lm(log(US_Sales) ~ trend, data = .)
+    predict(model)
+  }) %>%
+  ggplot(aes(x = Date, y = log(US_Sales) - log_lm_fit)) + 
+  geom_line(aes(color = "Linear Residuals")) +
+  labs(title = "US Sales Linear Residuals",
+       x = "Date",
+       y = "Residuals") +
+  scale_color_manual(values = c("Linear Residuals" = "blue"))
+
+# Quadratic Residuals Plot
+p2 <- df %>%
+  mutate(trend = seq_len(nrow(df))) %>%
+  mutate(log_lm_quad_fit = {
+    model <- lm(log(US_Sales) ~ trend + I(trend^2), data = .)
+    predict(model)
+  }) %>%
+  ggplot(aes(x = Date, y = log(US_Sales) - log_lm_quad_fit)) + 
+  geom_line(aes(color = "Quadratic Residuals")) +
+  labs(title = "US Sales Quadratic Residuals",
+       x = "Date",
+       y = "Residuals") +
+  scale_color_manual(values = c("Quadratic Residuals" = "red"))
+
+p3 <- df %>%
+  mutate(trend = seq_len(nrow(df))) %>%
+  mutate(log_lm_cubic_fit = {
+    model <- lm(log(US_Sales) ~ trend + I(trend^2) + I(trend^3), data = .)
+    predict(model)
+  }) %>%
+  ggplot(aes(x = Date, y = log(US_Sales) - log_lm_cubic_fit)) + 
+  geom_line(aes(color = "Cubic Residuals")) +
+  labs(title = "US Sales Cubic Residuals",
+       x = "Date",
+       y = "Residuals") +
+  scale_color_manual(values = c("Cubic Residuals" = "green"))
+
+grid.arrange(p1, p2, p3, nrow = 3)
+                               
+
+```
+
+```{r}
+
+df %>%
+  mutate(trend = seq(1:length(US_Sales))) %>%
+  mutate(month = factor(month(Date, label = TRUE))) %>%
+  tidyr::spread(key = month, value = month, fill = 0) %>%
+  mutate(across(jan:dec, ~ifelse(!is.na(.), 1, 0))) %>%
+  mutate(log_lm_fit_season = {
+    model <- lm(log(US_Sales) ~ trend + I(trend^2) + I(trend^3) + jan + feb + mar + apr + maj + jun + jul + aug + sep + okt + nov + dec, data = .)
+    predict(model)}
+  ) %>%
+  ggplot(aes(x = Date, y = log(US_Sales))) +
+  geom_line() +
+  geom_line(aes(x = Date, y = log_lm_fit_season), color = "blue") +
+  labs(title = "US Sales with Fitted Cubic Trend and Season",
+       x = "Date",
+       y = "Sales") +
+  theme_economist()
+
+```
+```{r}
+
+df %>%
+  mutate(trend = seq(1:length(US_Sales))) %>%
+  mutate(month = factor(month(Date, label = TRUE))) %>%
+  tidyr::spread(key = month, value = month, fill = 0) %>%
+  mutate(across(jan:dec, ~ifelse(!is.na(.), 1, 0))) %>%
+  mutate(log_lm_fit_season = {
+    model <- lm(log(US_Sales) ~ trend + I(trend^2) + I(trend^3) + jan + feb + mar + apr + maj + jun + jul + aug + sep + okt + nov + dec, data = .)
+    predict(model)}
+  ) %>%
+  ggplot(aes(x = Date, y = (log(US_Sales) - log_lm_fit_season))) +
+  geom_line() +
+  geom_hline(yintercept = 0) +
+  labs(title = "Residuals with Fitted Cubic Trend and Season",
+       x = "Date",
+       y = "Residuals") +
+  theme_economist()
+
+```
+```{r}
+
+omega <- c(2*pi/6,2*pi/12)
+cosTerm1 <- cos(omega[1]*(1:length(df_dummies$US_Sales)))
+cosTerm2 <- cos(omega[2]*(1:length(df_dummies$US_Sales)))
+sinTerm1 <- sin(omega[1]*(1:length(df_dummies$US_Sales)))
+sinTerm2 <- sin(omega[2]*(1:length(df_dummies$US_Sales)))
+
+models <- list(
+  lm_fit_linear <- lm(US_Sales ~ trend, data = df_dummies),
+  lm_fit_quadractic <- lm(US_Sales ~ trend + I(trend^2), data = df_dummies),
+  lm_fit_cubic <- lm(US_Sales ~ trend + I(trend^2) + I(trend^3), data = df_dummies),
+  lm_fit_season <- lm(US_Sales ~ jan + feb + mar + apr + maj + jun + jul + aug + sep + okt + nov + dec, data = df_dummies),
+  lm_fit_linear_season <- lm(US_Sales ~ trend + jan + feb + mar + apr + maj + jun + jul + aug + sep + okt + nov + dec, data = df_dummies),
+  lm_fit_quadratic_season <- lm(US_Sales ~ trend + I(trend^2) + jan + feb + mar + apr + maj + jun + jul + aug + sep + okt + nov + dec, data = df_dummies),
+  lm_fit_cubic_season <- lm(US_Sales ~ trend + I(trend^2) + I(trend^3) + jan + feb + mar + apr + maj + jun + jul + aug + sep + okt + nov + dec, data = df_dummies),
+  lm_fit_linear_trig_season <- lm(US_Sales ~ trend + cosTerm1 + cosTerm2 + sinTerm1 + sinTerm2, data = df_dummies),
+  lm_fit_quadractic_trig_season <- lm(US_Sales ~ trend + I(trend^2) + cosTerm1 + cosTerm2 + sinTerm1 + sinTerm2, data = df_dummies),
+  lm_fit_linear_trig_season <- lm(US_Sales ~ trend + I(trend^2) + I(trend^3) + cosTerm1 + cosTerm2 + sinTerm1 + sinTerm2, data = df_dummies)
+)
+
+results <- lapply(models, function(model) {
+  c(AIC = AIC(model), BIC = BIC(model))
+})
+  
+results_df <- do.call(rbind, results)
+results_df
+
+## It becomes clear that model 7 is the best!
+```
